@@ -19,7 +19,13 @@ import (
 var mdgoFS *memfs.MemFS
 
 func main() {
-	err := mdgo.Serve(mdgoFS, "_example", ":8080", "_example/html.tmpl")
+	opts := mdgo.ServeOptions{
+		Mfs:          mdgoFS,
+		Address:      ":8080",
+		HtmlTemplate: "_example/html.tmpl",
+		Root:         "_example",
+	}
+	err := mdgo.Serve(&opts)
 	if err != nil {
 		log.Fatal(err)
 	}

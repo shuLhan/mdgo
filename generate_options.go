@@ -4,7 +4,12 @@
 
 package mdgo
 
-import "github.com/shuLhan/share/lib/memfs"
+import (
+	"fmt"
+	"regexp"
+
+	"github.com/shuLhan/share/lib/memfs"
+)
 
 const (
 	// DefaultRoot define default Root value for GenerateOptions.
@@ -19,6 +24,10 @@ type GenerateOptions struct {
 	// code.
 	// Default to DefaultRoot if its empty.
 	Root string
+
+	// Exclude contains regular expresion to exclude certain paths from
+	// being scanned.
+	Exclude string
 
 	// HTMLTemplate the HTML template to be used when converting markup
 	// file into HTML.
@@ -38,9 +47,15 @@ type GenerateOptions struct {
 	// GenGoFileName the file name of Go source code will be written.
 	// Default to memfs.DefaultGenGoFileName if its empty.
 	GenGoFileName string
+
+	excRE []*regexp.Regexp
 }
 
-func (opts *GenerateOptions) init() {
+func (opts *GenerateOptions) init() (err error) {
+	var (
+		logp = "GenerateOptions.init"
+	)
+
 	if len(opts.Root) == 0 {
 		opts.Root = DefaultRoot
 	}
@@ -53,4 +68,13 @@ func (opts *GenerateOptions) init() {
 	if len(opts.GenGoFileName) == 0 {
 		opts.GenGoFileName = memfs.DefaultGenGoFileName
 	}
+	if len(opts.Exclude) > 0 {
+		re, err := regexp.Compile(opts.Exclude)
+		if err != nil {
+			return fmt.Errorf("%s: %w", logp, err)
+		}
+		opts.excRE = append(opts.excRE, re)
+		defExcludes = append(defExcludes, opts.Exclude)
+	}
+	return nil
 }

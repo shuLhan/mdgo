@@ -15,14 +15,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/shuLhan/share/lib/memfs"
 )
 
 const (
-	defAddress           = ":8080"
-	defDir               = "."
 	extMarkdown          = ".md"
 	internalTemplatePath = "_internal/.template"
 )
@@ -45,11 +44,21 @@ var (
 // If htmlTemplate is empty it will default to use embedded HTML template.
 // See template_index_html.go for template format.
 //
-func Convert(dir, htmlTemplate string) (err error) {
-	logp := "Convert"
+func Convert(htmlTemplate, dir, exclude string) (err error) {
+	var (
+		logp     = "Convert"
+		excludes []*regexp.Regexp
+	)
 
 	if len(dir) == 0 {
 		dir = "."
+	}
+	if len(exclude) > 0 {
+		re, err := regexp.Compile(exclude)
+		if err != nil {
+			return fmt.Errorf("%s: %w", logp, err)
+		}
+		excludes = append(excludes, re)
 	}
 
 	htmlg, err := newHTMLGenerator(nil, htmlTemplate, true)
@@ -57,7 +66,7 @@ func Convert(dir, htmlTemplate string) (err error) {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fileMarkups, err := listFileMarkups(dir)
+	fileMarkups, err := listFileMarkups(dir, excludes)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
@@ -78,19 +87,24 @@ func Convert(dir, htmlTemplate string) (err error) {
 // See template_index_html.go for template format.
 //
 func Generate(opts *GenerateOptions) (err error) {
-	logp := "Generate"
+	var (
+		logp = "Generate"
+	)
 
 	if opts == nil {
 		opts = &GenerateOptions{}
 	}
-	opts.init()
+	err = opts.init()
+	if err != nil {
+		return err
+	}
 
 	htmlg, err := newHTMLGenerator(nil, opts.HTMLTemplate, true)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fileMarkups, err := listFileMarkups(opts.Root)
+	fileMarkups, err := listFileMarkups(opts.Root, opts.excRE)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
@@ -126,50 +140,27 @@ func Generate(opts *GenerateOptions) (err error) {
 // Serve the content at directory "dir" using HTTP server at specific
 // "address".
 //
-func Serve(mfs *memfs.MemFS, dir, address, htmlTemplate string) (err error) {
-	if len(dir) == 0 {
-		dir = defDir
+func Serve(opts *ServeOptions) (err error) {
+	var (
+		logp = "Serve"
+	)
+
+	if opts == nil {
+		opts = &ServeOptions{}
 	}
-	if len(address) == 0 {
-		address = defAddress
-	}
-	srv, err := newServer(mfs, dir, address, htmlTemplate)
+
+	err = opts.init()
 	if err != nil {
-		return fmt.Errorf("Serve: %w", err)
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+	srv, err := newServer(opts)
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
 	}
 	err = srv.start()
 	if err != nil {
-		return fmt.Errorf("Serve: %w", err)
+		return fmt.Errorf("%s: %w", logp, err)
 	}
-	return nil
-}
-
-//
-// Watch any changes on markup files on directory "dir" recursively and
-// changes on the HTML template file.
-// If there is new or modified markup files it will convert them into HTML
-// files using HTML template automatically.
-//
-// If the HTML template file modified, it will re-convert all markup files.
-// If the HTML template file deleted, it will replace them with internal,
-// default HTML template.
-//
-func Watch(dir, htmlTemplate string) (err error) {
-	htmlg, err := newHTMLGenerator(nil, htmlTemplate, true)
-	if err != nil {
-		return fmt.Errorf("Watch: %w", err)
-	}
-
-	w, err := newWatcher(htmlg, dir)
-	if err != nil {
-		return fmt.Errorf("Watch: %w", err)
-	}
-
-	err = w.start()
-	if err != nil {
-		return fmt.Errorf("Watch: %w", err)
-	}
-
 	return nil
 }
 
@@ -181,7 +172,7 @@ func isExtensionMarkup(ext string) bool {
 // listFileMarkups find any markup files inside the content directory,
 // recursively.
 //
-func listFileMarkups(dir string) (fileMarkups map[string]*fileMarkup, err error) {
+func listFileMarkups(dir string, excRE []*regexp.Regexp) (fileMarkups map[string]*fileMarkup, err error) {
 	logp := "listFileMarkups"
 
 	d, err := os.Open(dir)
@@ -201,7 +192,7 @@ func listFileMarkups(dir string) (fileMarkups map[string]*fileMarkup, err error)
 
 		if fi.IsDir() && name[0] != '.' {
 			newdir := filepath.Join(dir, fi.Name())
-			fmarkups, err := listFileMarkups(newdir)
+			fmarkups, err := listFileMarkups(newdir, excRE)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", logp, err)
 			}
@@ -221,6 +212,10 @@ func listFileMarkups(dir string) (fileMarkups map[string]*fileMarkup, err error)
 
 		filePath := filepath.Join(dir, name)
 
+		if isExcluded(filePath, excRE) {
+			continue
+		}
+
 		fmarkup := &fileMarkup{
 			path:     filePath,
 			info:     fi,
@@ -234,4 +229,16 @@ func listFileMarkups(dir string) (fileMarkups map[string]*fileMarkup, err error)
 	}
 
 	return fileMarkups, nil
+}
+
+func isExcluded(path string, excs []*regexp.Regexp) bool {
+	if len(excs) == 0 {
+		return false
+	}
+	for _, re := range excs {
+		if re.MatchString(path) {
+			return true
+		}
+	}
+	return false
 }

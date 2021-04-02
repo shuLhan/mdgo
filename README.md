@@ -17,7 +17,7 @@ serve a directory that contains markup files, as HTML files.
 ###  Usage
 
 ```
-$ mdgo [-template <file>] convert <dir>
+$ mdgo [-template <file>] [-exclude <regex>] convert <dir>
 ```
 
 Scan the "dir" recursively to find markup files (.md) and convert them into
@@ -25,7 +25,7 @@ HTML files.
 The template "file" is optional, default to embedded HTML template.
 
 ```
-$ mdgo [-template <file>] [-out <file>] generate <dir>
+$ mdgo [-template <file>] [-out <file>] [-exclude <regex>] generate <dir>
 ```
 
 Convert all markup files inside directory "dir" recursively and then
@@ -34,7 +34,7 @@ The output file is optional, default to "mdgo_static.go" in current
 directory.
 
 ```
-$ mdgo [-template <file>] [-address <ip:port>] serve <dir>
+$ mdgo [-template <file>] [-address <ip:port>] [-exclude <regex>] serve <dir>
 ```
 
 Serve all files inside directory "dir" using HTTP server, watch
@@ -93,7 +93,16 @@ import (
 var mysiteFS *memfs.MemFS
 
 func main() {
-	mdgo.Serve(mysiteFS, "./_contents", ":8080", "_contents/html.tmpl")
+	opts := &mdgo.ServeOptions{
+		Mfs:          mysiteFS,
+		Address:      ":8080",
+		HtmlTemplate: "_contents/html.tmpl",
+		Root:         "_contents",
+	}
+	err := mdgo.Serve(opts)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
@@ -102,7 +111,7 @@ Each directory, or sub directory, should have `index.md` to be able to
 accessed by browser,
 
 ```
-=  Test
+#  Test
 
 Hello, world!
 ```
