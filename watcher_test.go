@@ -25,7 +25,7 @@ func TestWatcher(t *testing.T) {
 
 	err := os.RemoveAll(testDir)
 	if err != nil {
-		t.Fatal(err)
+		t.Logf(err.Error())
 	}
 
 	err = os.MkdirAll(testDir, 0700)
@@ -69,11 +69,11 @@ func testCreate(t *testing.T) {
 
 	got := waitChanges()
 
-	test.Assert(t, "New md file created", testFileMd, got.path, true)
+	test.Assert(t, "New md file created", testFileMd, got.path)
 
 	expBody := ``
 	gotBody := removeFooter(string(got.fhtml.Body))
-	test.Assert(t, "HTML body", expBody, gotBody, true)
+	test.Assert(t, "HTML body", expBody, gotBody)
 }
 
 func testUpdate(t *testing.T) {
@@ -87,12 +87,12 @@ func testUpdate(t *testing.T) {
 	}
 
 	got := waitChanges()
-	test.Assert(t, "md file updated", testFileMd, got.path, true)
+	test.Assert(t, "md file updated", testFileMd, got.path)
 
 	expBody := `<h1>Hello</h1>
 `
 	gotBody := removeFooter(string(got.fhtml.Body))
-	test.Assert(t, "HTML body", expBody, gotBody, true)
+	test.Assert(t, "HTML body", expBody, gotBody)
 }
 
 func testDelete(t *testing.T) {
@@ -107,10 +107,10 @@ func testDelete(t *testing.T) {
 	}
 
 	got := waitChanges()
-	test.Assert(t, "md file updated", testFileMd, got.path, true)
+	test.Assert(t, "md file updated", testFileMd, got.path)
 
 	_, gotIsExist := testWatcher.fileMarkups[testFileMd]
-	test.Assert(t, "md file deleted", false, gotIsExist, true)
+	test.Assert(t, "md file deleted", false, gotIsExist)
 }
 
 //

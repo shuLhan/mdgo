@@ -14,8 +14,10 @@ import (
 
 func main() {
 	opts := mdgo.GenerateOptions{
-		Root:           "_example",
-		HTMLTemplate:   "_example/html.tmpl",
+		ConvertOptions: mdgo.ConvertOptions{
+			Root:         "_example",
+			HtmlTemplate: "_example/html.tmpl",
+		},
 		GenPackageName: "main",
 		GenVarName:     "mdgoFS",
 		GenGoFileName:  "cmd/mdgo-example/static.go",

@@ -104,7 +104,7 @@ func (htmlg *htmlGenerator) convert(fmarkup *fileMarkup) (err error) {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fmarkup.fhtml.unpackMarkdownMetadata(ctx)
+	fmarkup.fhtml.unpackMetadata(ctx)
 
 	return htmlg.write(fmarkup.fhtml)
 }

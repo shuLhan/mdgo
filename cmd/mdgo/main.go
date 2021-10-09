@@ -12,18 +12,18 @@
 //
 //	mdgo [-template <file>] [-exclude <regex>] convert <dir>
 //
-// Scan the "dir" recursively to find markup files (.md) and convert
-// them into HTML files.
+// Scan the "dir" recursively to find markup files and convert them into HTML
+// files.
 // The template "file" is optional, default to embedded HTML template.
 //
-//	mdgo [-template <file>] [-out <file>] [-exclude <regex>] generate <dir>
+//	mdgo [-template <file>] [-exclude <regex>] [-out <file>] generate <dir>
 //
 // Convert all the markup files inside directory "dir" recursively and then
 // embed them into ".go" source file.
 // The output file is optional, default to "mdgo_static.go" in current
 // directory.
 //
-//	mdgo [-template <file>] [-address <ip:port>] [-exclude <regex>] serve <dir>
+//	mdgo [-template <file>] [-exclude <regex>] [-address <ip:port>] serve <dir>
 //
 // Serve all files inside directory "dir" using HTTP server, watch changes on
 // markup files and convert them to HTML files.
@@ -51,7 +51,7 @@ func main() {
 	address := flag.String("address", ":8080",
 		"the binding address for HTTP server")
 	exclude := flag.String("exclude", "",
-		"a regex to exclude certain paths from being scanned during covert, generate, or serve")
+		"a regex to exclude certain paths from being scanned during covert, generate, watch, or serve")
 
 	flag.Parse()
 
@@ -76,23 +76,36 @@ func main() {
 
 	switch command {
 	case "convert":
-		err = mdgo.Convert(*htmlTemplate, dir, *exclude)
+		opts := mdgo.ConvertOptions{
+			Root:         dir,
+			HtmlTemplate: *htmlTemplate,
+			Exclude:      *exclude,
+		}
+		err = mdgo.Convert(&opts)
+
 	case "generate":
 		genOpts := mdgo.GenerateOptions{
-			Root:          dir,
-			HTMLTemplate:  *htmlTemplate,
+			ConvertOptions: mdgo.ConvertOptions{
+				Root:         dir,
+				HtmlTemplate: *htmlTemplate,
+				Exclude:      *exclude,
+			},
 			GenGoFileName: *outputFile,
 		}
 		err = mdgo.Generate(&genOpts)
+
 	case "serve":
 		debug.Value = 1
 		opts := mdgo.ServeOptions{
-			Address:      *address,
-			HtmlTemplate: *htmlTemplate,
-			Root:         dir,
-			Exclude:      *exclude,
+			ConvertOptions: mdgo.ConvertOptions{
+				Root:         dir,
+				HtmlTemplate: *htmlTemplate,
+				Exclude:      *exclude,
+			},
+			Address: *address,
 		}
 		err = mdgo.Serve(&opts)
+
 	default:
 		usage()
 		os.Exit(1)
@@ -106,25 +119,25 @@ func usage() {
 	fmt.Println(`
 =  mdgo
 
-A command line interface to convert, generate, and/or serve a directory that
-contains markup files, as HTML files.
+A CLI to convert, generate, and/or serve a directory that contains markup
+files, as HTML files.
 
 ==  Usage
 
 mdgo [-template <file>] [-exclude <regex>] convert <dir>
 
-	Scan the "dir" recursively to find markup files (.md)
+	Scan the "dir" recursively to find markup files.
 	and convert them into HTML files.
 	The template "file" is optional, default to embedded HTML template.
 
-mdgo [-template <file>] [-out <file>] [-exclude <regex>] generate <dir>
+mdgo [-template <file>] [-exclude <regex>] [-out <file>] generate <dir>
 
 	Convert all markup files inside directory "dir" recursively and then
 	embed them into ".go" source file.
 	The output file is optional, default to "mdgo_static.go" in current
 	directory.
 
-mdgo [-template <file>] [-address <ip:port>] [-exclude <regex>] serve <dir>
+mdgo [-template <file>] [-exclude <regex>] [-address <ip:port>] serve <dir>
 
 	Serve all files inside directory "dir" using HTTP server, watch
 	changes on markup files and convert them to HTML files automatically.

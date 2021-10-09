@@ -33,6 +33,7 @@ const (
 //nolint: gochecknoglobals
 var (
 	defExcludes = []string{
+		`.*\.git`,
 		`.*\.md$`,
 		`^\..*`,
 	}
@@ -44,29 +45,27 @@ var (
 // If htmlTemplate is empty it will default to use embedded HTML template.
 // See template_index_html.go for template format.
 //
-func Convert(htmlTemplate, dir, exclude string) (err error) {
+func Convert(opts *ConvertOptions) (err error) {
 	var (
-		logp     = "Convert"
-		excludes []*regexp.Regexp
+		logp        = "Convert"
+		htmlg       *htmlGenerator
+		fileMarkups map[string]*fileMarkup
 	)
 
-	if len(dir) == 0 {
-		dir = "."
+	if opts == nil {
+		opts = &ConvertOptions{}
 	}
-	if len(exclude) > 0 {
-		re, err := regexp.Compile(exclude)
-		if err != nil {
-			return fmt.Errorf("%s: %w", logp, err)
-		}
-		excludes = append(excludes, re)
-	}
-
-	htmlg, err := newHTMLGenerator(nil, htmlTemplate, true)
+	err = opts.init()
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fileMarkups, err := listFileMarkups(dir, excludes)
+	htmlg, err = newHTMLGenerator(nil, opts.HtmlTemplate, true)
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+
+	fileMarkups, err = listFileMarkups(opts.Root, opts.excRE)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
@@ -88,7 +87,10 @@ func Convert(htmlTemplate, dir, exclude string) (err error) {
 //
 func Generate(opts *GenerateOptions) (err error) {
 	var (
-		logp = "Generate"
+		logp        = "Generate"
+		htmlg       *htmlGenerator
+		fileMarkups map[string]*fileMarkup
+		mfs         *memfs.MemFS
 	)
 
 	if opts == nil {
@@ -96,15 +98,15 @@ func Generate(opts *GenerateOptions) (err error) {
 	}
 	err = opts.init()
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	htmlg, err := newHTMLGenerator(nil, opts.HTMLTemplate, true)
+	htmlg, err = newHTMLGenerator(nil, opts.HtmlTemplate, true)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fileMarkups, err := listFileMarkups(opts.Root, opts.excRE)
+	fileMarkups, err = listFileMarkups(opts.Root, opts.excRE)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
@@ -115,13 +117,13 @@ func Generate(opts *GenerateOptions) (err error) {
 		Root:     opts.Root,
 		Excludes: defExcludes,
 	}
-	mfs, err := memfs.New(memfsOpts)
+	mfs, err = memfs.New(memfsOpts)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
 
-	if len(opts.HTMLTemplate) > 0 {
-		_, err = mfs.AddFile(internalTemplatePath, opts.HTMLTemplate)
+	if len(opts.HtmlTemplate) > 0 {
+		_, err = mfs.AddFile(internalTemplatePath, opts.HtmlTemplate)
 		if err != nil {
 			return fmt.Errorf("%s: %w", logp, err)
 		}
@@ -143,17 +145,18 @@ func Generate(opts *GenerateOptions) (err error) {
 func Serve(opts *ServeOptions) (err error) {
 	var (
 		logp = "Serve"
+		srv  *server
 	)
 
 	if opts == nil {
 		opts = &ServeOptions{}
 	}
-
 	err = opts.init()
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
-	srv, err := newServer(opts)
+
+	srv, err = newServer(opts)
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
@@ -161,6 +164,49 @@ func Serve(opts *ServeOptions) (err error) {
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
+	return nil
+}
+
+//
+// Watch any changes on markup files on directory Root recursively and
+// changes on the HTML template file.
+// If there is new or modified markup files it will convert them into HTML
+// files using HTML template automatically.
+//
+// If the HTML template file modified, it will re-convert all markup files.
+// If the HTML template file deleted, it will replace them with internal,
+// default HTML template.
+//
+func Watch(opts *ConvertOptions) (err error) {
+	var (
+		logp  = "Watch"
+		htmlg *htmlGenerator
+		w     *watcher
+	)
+
+	if opts == nil {
+		opts = &ConvertOptions{}
+	}
+	err = opts.init()
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+
+	htmlg, err = newHTMLGenerator(nil, opts.HtmlTemplate, true)
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+
+	w, err = newWatcher(htmlg, opts.Root, opts.Exclude)
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+
+	err = w.start()
+	if err != nil {
+		return fmt.Errorf("%s: %w", logp, err)
+	}
+
 	return nil
 }
 
@@ -172,15 +218,21 @@ func isExtensionMarkup(ext string) bool {
 // listFileMarkups find any markup files inside the content directory,
 // recursively.
 //
-func listFileMarkups(dir string, excRE []*regexp.Regexp) (fileMarkups map[string]*fileMarkup, err error) {
-	logp := "listFileMarkups"
+func listFileMarkups(dir string, excRE []*regexp.Regexp) (
+	fileMarkups map[string]*fileMarkup, err error,
+) {
+	var (
+		logp = "listFileMarkups"
+		d    *os.File
+		fis  []os.FileInfo
+	)
 
-	d, err := os.Open(dir)
+	d, err = os.Open(dir)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", logp, err)
 	}
 
-	fis, err := d.Readdir(0)
+	fis, err = d.Readdir(0)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", logp, err)
 	}

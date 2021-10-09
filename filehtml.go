@@ -27,7 +27,7 @@ type fileHTML struct {
 	rawBody strings.Builder
 }
 
-func (fhtml *fileHTML) unpackMarkdownMetadata(ctx parser.Context) {
+func (fhtml *fileHTML) unpackMetadata(ctx parser.Context) {
 	metadata := meta.Get(ctx)
 	for k, v := range metadata {
 		vstr, ok := v.(string)

@@ -17,8 +17,8 @@ import (
 )
 
 //
-// watcher watch for changes on all markup file and convert them
-// automatically.
+// watcher watch for changes on all markup files and convert them
+// automatically to HTML.
 //
 type watcher struct {
 	dir         string
@@ -39,7 +39,7 @@ type watcher struct {
 //	|
 //	+-- onChangeFileMarkup --> UPDATE --> htmlGenerator.convert()
 //	|
-//	+-- onChangeHTMLTemplate +--> DELETE --> htmlGenerator.htmlTemplateUseInternal()
+//	+-- onChangeHtmlTemplate +--> DELETE --> htmlGenerator.htmlTemplateUseInternal()
 //	                         |
 //	                         +--> UPDATE --> htmlGenerated.htmlTemplateReload()
 //
@@ -58,6 +58,8 @@ func newWatcher(htmlg *htmlGenerator, dir, exclude string) (w *watcher, err erro
 			},
 			Excludes: []string{
 				`^\..*`,
+				`node_modules/.*`,
+				`vendor/.*`,
 			},
 		},
 		Delay:    time.Second,
@@ -77,8 +79,9 @@ func newWatcher(htmlg *htmlGenerator, dir, exclude string) (w *watcher, err erro
 //
 func (w *watcher) onChangeFileMarkup(ns *libio.NodeState) {
 	var (
-		logp = "onChangeFileMarkup"
-		err  error
+		logp    = "onChangeFileMarkup"
+		fmarkup *fileMarkup
+		err     error
 	)
 
 	ext := strings.ToLower(filepath.Ext(ns.Node.SysPath))
@@ -86,7 +89,8 @@ func (w *watcher) onChangeFileMarkup(ns *libio.NodeState) {
 		return
 	}
 
-	if ns.State == libio.FileStateDeleted {
+	switch ns.State {
+	case libio.FileStateDeleted:
 		fmt.Printf("%s: %q deleted\n", logp, ns.Node.SysPath)
 		fmarkup, ok := w.fileMarkups[ns.Node.SysPath]
 		if ok {
@@ -94,11 +98,10 @@ func (w *watcher) onChangeFileMarkup(ns *libio.NodeState) {
 			w.changes.Push(fmarkup)
 		}
 		return
-	}
 
-	fmarkup := w.fileMarkups[ns.Node.SysPath]
-	if fmarkup == nil {
+	case libio.FileStateCreated:
 		fmt.Printf("%s: %s created\n", logp, ns.Node.SysPath)
+
 		fmarkup, err = newFileMarkup(ns.Node.SysPath, nil)
 		if err != nil {
 			log.Printf("%s: %s\n", logp, err)
@@ -106,8 +109,19 @@ func (w *watcher) onChangeFileMarkup(ns *libio.NodeState) {
 		}
 
 		w.fileMarkups[ns.Node.SysPath] = fmarkup
-	} else {
-		fmt.Printf("%s: %s updated\n", logp, ns.Node.SysPath)
+
+	case libio.FileStateUpdateMode:
+		fmt.Printf("%s: %s mode updated\n", logp, ns.Node.SysPath)
+		return
+
+	case libio.FileStateUpdateContent:
+		fmt.Printf("%s: %s content updated\n", logp, ns.Node.SysPath)
+
+		fmarkup = w.fileMarkups[ns.Node.SysPath]
+		if fmarkup == nil {
+			fmt.Printf("%s: %s not found\n", logp, ns.Node.SysPath)
+			return
+		}
 	}
 
 	err = w.htmlg.convert(fmarkup)
@@ -119,12 +133,12 @@ func (w *watcher) onChangeFileMarkup(ns *libio.NodeState) {
 }
 
 //
-// onChangeHTMLTemplate reload the HTML template and re-convert all markup
+// onChangeHtmlTemplate reload the HTML template and re-convert all markup
 // files.
 //
-func (w *watcher) onChangeHTMLTemplate(ns *libio.NodeState) {
+func (w *watcher) onChangeHtmlTemplate(ns *libio.NodeState) {
 	var err error
-	logp := "onChangeHTMLTemplate"
+	logp := "onChangeHtmlTemplate"
 
 	if ns.State == libio.FileStateDeleted {
 		log.Printf("%s: HTML template file %q has been deleted\n",
@@ -153,7 +167,7 @@ func (w *watcher) start() (err error) {
 		return fmt.Errorf("start: %w", err)
 	}
 	if len(w.htmlg.htmlTemplate) > 0 {
-		_, err = libio.NewWatcher(w.htmlg.htmlTemplate, 0, w.onChangeHTMLTemplate)
+		_, err = libio.NewWatcher(w.htmlg.htmlTemplate, 0, w.onChangeHtmlTemplate)
 		if err != nil {
 			return fmt.Errorf("start: %w", err)
 		}
