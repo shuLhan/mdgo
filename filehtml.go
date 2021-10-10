@@ -7,6 +7,8 @@ package mdgo
 import (
 	"fmt"
 	"html/template"
+	"io/fs"
+	"os"
 	"strings"
 
 	meta "github.com/yuin/goldmark-meta"
@@ -14,9 +16,9 @@ import (
 )
 
 //
-// fileHTML represent an HTML metadata for header and its body.
+// fileHtml represent an HTML metadata for header and its body.
 //
-type fileHTML struct {
+type fileHtml struct {
 	Title       string
 	EmbeddedCSS *template.CSS
 	Styles      []string
@@ -24,10 +26,19 @@ type fileHTML struct {
 	Metadata    map[string]string
 
 	path    string
+	finfo   fs.FileInfo
 	rawBody strings.Builder
 }
 
-func (fhtml *fileHTML) unpackMetadata(ctx parser.Context) {
+func newFileHtml(path string) (fhtml *fileHtml) {
+	fhtml = &fileHtml{
+		path: path,
+	}
+	fhtml.finfo, _ = os.Stat(path)
+	return fhtml
+}
+
+func (fhtml *fileHtml) unpackMetadata(ctx parser.Context) {
 	metadata := meta.Get(ctx)
 	for k, v := range metadata {
 		vstr, ok := v.(string)

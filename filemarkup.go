@@ -1,4 +1,4 @@
-// Copyright 2021, Shulhan <ms@kilabit.info>. All rights reserved.
+// Copyright 2019, Shulhan <ms@kilabit.info>. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ type fileMarkup struct {
 	path     string      // path contains full path to markup file.
 	info     os.FileInfo // info contains FileInfo of markup file.
 	basePath string      // basePath contains full path to file without markup extension.
-	fhtml    *fileHTML   // The HTML output of this markup.
+	fhtml    *fileHtml   // The HTML output of this markup.
 }
 
 func newFileMarkup(filePath string, fi os.FileInfo) (fmarkup *fileMarkup, err error) {
@@ -36,10 +36,17 @@ func newFileMarkup(filePath string, fi os.FileInfo) (fmarkup *fileMarkup, err er
 		path:     filePath,
 		info:     fi,
 		basePath: strings.TrimSuffix(filePath, ext),
-		fhtml:    &fileHTML{},
 	}
 
-	fmarkup.fhtml.path = fmarkup.basePath + ".html"
+	fmarkup.fhtml = newFileHtml(fmarkup.basePath + ".html")
 
 	return fmarkup, nil
+}
+
+// isNewerThanHtml return true if the markup file is newer than HTML file.
+func (fm *fileMarkup) isNewerThanHtml() bool {
+	if fm.fhtml.finfo == nil {
+		return true
+	}
+	return fm.info.ModTime().After(fm.fhtml.finfo.ModTime())
 }

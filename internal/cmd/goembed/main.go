@@ -13,16 +13,16 @@ import (
 )
 
 func main() {
-	opts := mdgo.GenerateOptions{
+	opts := mdgo.EmbedOptions{
 		ConvertOptions: mdgo.ConvertOptions{
 			Root:         "_example",
 			HtmlTemplate: "_example/html.tmpl",
 		},
-		GenPackageName: "main",
-		GenVarName:     "mdgoFS",
-		GenGoFileName:  "cmd/mdgo-example/static.go",
+		PackageName: "main",
+		VarName:     "mdgoFS",
+		GoFileName:  "cmd/mdgo-example/static.go",
 	}
-	err := mdgo.Generate(&opts)
+	err := mdgo.GoEmbed(&opts)
 	if err != nil {
 		log.Fatal(err)
 	}

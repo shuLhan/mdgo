@@ -3,12 +3,12 @@
 // found in the LICENSE file.
 
 //
-// mdgo is a command line interface (CLI) to convert, generate, and/or serve a
-// directory that contains markup files, as HTML files.
+// mdgo is a CLI to convert, embed, and/or serve a directory that contains
+// markup files, as HTML files.
 //
 // Usage
 //
-// The following section describe how to use mdgo CLI.
+// The following section describe how to use the CLI.
 //
 //	mdgo [-template <file>] [-exclude <regex>] convert <dir>
 //
@@ -16,7 +16,7 @@
 // files.
 // The template "file" is optional, default to embedded HTML template.
 //
-//	mdgo [-template <file>] [-exclude <regex>] [-out <file>] generate <dir>
+//	mdgo [-template <file>] [-exclude <regex>] [-out <file>] embed <dir>
 //
 // Convert all the markup files inside directory "dir" recursively and then
 // embed them into ".go" source file.
@@ -43,15 +43,16 @@ import (
 )
 
 func main() {
+	flag.Usage = usage
 	isHelp := flag.Bool("help", false, "print help")
 
 	htmlTemplate := flag.String("template", "", "path to HTML template")
 	outputFile := flag.String("out", "mdgo_static.go",
-		"path to output of .go generated file")
+		"path to output of .go embed file")
 	address := flag.String("address", ":8080",
 		"the binding address for HTTP server")
 	exclude := flag.String("exclude", "",
-		"a regex to exclude certain paths from being scanned during covert, generate, watch, or serve")
+		"a regex to exclude certain paths from being scanned during covert, embeded, watch, or serve")
 
 	flag.Parse()
 
@@ -83,16 +84,16 @@ func main() {
 		}
 		err = mdgo.Convert(&opts)
 
-	case "generate":
-		genOpts := mdgo.GenerateOptions{
+	case "embed":
+		genOpts := mdgo.EmbedOptions{
 			ConvertOptions: mdgo.ConvertOptions{
 				Root:         dir,
 				HtmlTemplate: *htmlTemplate,
 				Exclude:      *exclude,
 			},
-			GenGoFileName: *outputFile,
+			GoFileName: *outputFile,
 		}
-		err = mdgo.Generate(&genOpts)
+		err = mdgo.GoEmbed(&genOpts)
 
 	case "serve":
 		debug.Value = 1
@@ -119,7 +120,7 @@ func usage() {
 	fmt.Println(`
 =  mdgo
 
-A CLI to convert, generate, and/or serve a directory that contains markup
+A CLI to convert, embed, and/or serve a directory that contains asciidoc markup
 files, as HTML files.
 
 ==  Usage
@@ -130,14 +131,14 @@ mdgo [-template <file>] [-exclude <regex>] convert <dir>
 	and convert them into HTML files.
 	The template "file" is optional, default to embedded HTML template.
 
-mdgo [-template <file>] [-exclude <regex>] [-out <file>] generate <dir>
+mdgo [-template <file>] [-exclude <regex>] [-out <file>] embed <dir>
 
 	Convert all markup files inside directory "dir" recursively and then
 	embed them into ".go" source file.
 	The output file is optional, default to "mdgo_static.go" in current
 	directory.
 
-mdgo [-template <file>] [-exclude <regex>] [-address <ip:port>] serve <dir>
+mdgo [-template <file>]  [-exclude <regex>] [-address <ip:port>] serve <dir>
 
 	Serve all files inside directory "dir" using HTTP server, watch
 	changes on markup files and convert them to HTML files automatically.
