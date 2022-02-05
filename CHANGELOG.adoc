@@ -1,0 +1,21 @@
+= mdgo CHANGELOG
+Shulhan <ms@kilabit.info>
+:toc:
+:sectanchors:
+:sectlinks:
+
+== mdgo v0.1.0 (2022-02-05)
+
+`mdgo` is a library and a program to write static web server with embedded
+files using markdown markup language.
+
+Features,
+
+* convert: Scan the "dir" recursively to find markup files (.md) and convert
+  them into HTML files.
+
+* generate: Convert all markup files inside directory "dir" recursively and
+  then embed them into ".go" source file.
+
+* server: Serve all files inside directory "dir" using HTTP server, watch
+  changes on markup files and convert them to HTML files automatically.

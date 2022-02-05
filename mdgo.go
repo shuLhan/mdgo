@@ -22,6 +22,8 @@ import (
 )
 
 const (
+	Version = "0.1.0"
+
 	extMarkdown          = ".md"
 	internalTemplatePath = "_internal/.template"
 )
