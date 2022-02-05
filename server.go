@@ -35,13 +35,20 @@ type server struct {
 func newServer(opts *ServeOptions) (srv *server, err error) {
 	logp := "newServer"
 
+	if opts.Mfs == nil {
+		mfsOpts := memfs.Options{
+			Root:        opts.Root,
+			Excludes:    defExcludes,
+			Development: debug.Value > 0,
+		}
+		opts.Mfs, err = memfs.New(&mfsOpts)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", logp, err)
+		}
+	}
+
 	srv = &server{
 		opts: &libhttp.ServerOptions{
-			Options: memfs.Options{
-				Root:        opts.Root,
-				Excludes:    defExcludes,
-				Development: debug.Value > 0,
-			},
 			Memfs:   opts.Mfs,
 			Address: opts.Address,
 		},
@@ -65,12 +72,13 @@ func newServer(opts *ServeOptions) (srv *server, err error) {
 		return nil, fmt.Errorf("%s: %w", logp, err)
 	}
 
-	srv.htmlg, err = newHTMLGenerator(opts.Mfs, opts.HtmlTemplate, srv.opts.Development)
+	srv.htmlg, err = newHTMLGenerator(opts.Mfs, opts.HtmlTemplate,
+		srv.http.Options.Memfs.Opts.Development)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", logp, err)
 	}
 
-	if srv.opts.Development {
+	if srv.http.Options.Memfs.Opts.Development {
 		srv.watcher, err = newWatcher(srv.htmlg, opts.Root, opts.Exclude)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", logp, err)
@@ -93,7 +101,7 @@ func newServer(opts *ServeOptions) (srv *server, err error) {
 func (srv *server) start() (err error) {
 	logp := "start"
 
-	if srv.opts.Development {
+	if srv.http.Options.Memfs.Opts.Development {
 		err := srv.watcher.start()
 		if err != nil {
 			return fmt.Errorf("%s: %w", logp, err)
@@ -101,7 +109,7 @@ func (srv *server) start() (err error) {
 	}
 
 	fmt.Printf("mdgo: starting HTTP server at %q for %q\n",
-		srv.opts.Address, srv.opts.Root)
+		srv.opts.Address, srv.http.Options.Memfs.Opts.Root)
 
 	err = srv.http.Start()
 	if err != nil {

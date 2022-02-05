@@ -118,6 +118,11 @@ func GoEmbed(opts *EmbedOptions) (err error) {
 	memfsOpts := &memfs.Options{
 		Root:     opts.Root,
 		Excludes: defExcludes,
+		Embed: memfs.EmbedOptions{
+			PackageName: opts.PackageName,
+			VarName:     opts.VarName,
+			GoFileName:  opts.GoFileName,
+		},
 	}
 	mfs, err = memfs.New(memfsOpts)
 	if err != nil {
@@ -131,7 +136,7 @@ func GoEmbed(opts *EmbedOptions) (err error) {
 		}
 	}
 
-	err = mfs.GoEmbed(opts.PackageName, opts.VarName, opts.GoFileName, memfs.EncodingGzip)
+	err = mfs.GoEmbed()
 	if err != nil {
 		return fmt.Errorf("%s: %w", logp, err)
 	}
